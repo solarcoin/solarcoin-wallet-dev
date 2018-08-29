@@ -27,15 +27,15 @@ NOTE: Building with Qt4 is still supported, however, could result in a broken UI
 NOTE: On Mac the native brew install of openssl places the files in a place the bitcoin code has difficulty finding.
 The solution is to create a symlink in /usr/locacl/include to where the files actually live:
 
-> cd /usr/local/include
-> ln -s ../opt/openssl/include/openssl .
+	cd /usr/local/include
+	ln -s ../opt/openssl/include/openssl .
 
 Build SolarCoin Core
 ------------------------
 
 1. Clone the solarcoin source code and cd into `solarcoin`
 
-        git clone https://github.com/solarcoin-project/solarcoin.git
+        git clone https://github.com/solarcoin/solarcoin.git
         cd solarcoin
 
 2.  Build solarcoin-core:
