@@ -291,8 +291,24 @@ bool ComputeNextStakeModifier(const CBlockIndex* pindexCurrent, uint64_t& nStake
     return true;
 }
 
-// The stake modifier used to hash for a stake kernel is chosen as the stake
-// modifier about a selection interval later than the coin generating the kernel
+// 
+/**
+ * @brief Get the Kernel Stake Modifier object
+ * 
+ * Called from CheckStakeTimeKernelHash. Fetches the kernel stake modifier for a given block.
+ * 
+ * The stake modifier used to hash for a stake kernel is chosen as the stake
+ * modifier about a selection interval later than the coin generating the kernel
+ * 
+ * @param hashBlockFrom the block to fetch the stake modifier for
+ * @param[out] nStakeModifier the address to store the stake modifier
+ * @param[out] nStakeModifierHeight the address to store the height of the block with the hash specified in hashBlockFrom
+ * @param[out] nStakeModifierTime the address to store the timestamp of the block with the hash specified in hashBlockFrom
+ * @param fPrintProofOfStake a flag for extended debug print information
+ * @param params consensus parameters
+ * @return true 
+ * @return false 
+ */
 static bool GetKernelStakeModifier(uint256 hashBlockFrom, uint64_t& nStakeModifier, int& nStakeModifierHeight, int64_t& nStakeModifierTime, bool fPrintProofOfStake, const Consensus::Params& params)
 {
     nStakeModifier = 0;
@@ -340,27 +356,54 @@ static bool GetKernelStakeModifier(uint256 hashBlockFrom, uint64_t& nStakeModifi
     return true;
 }
 
-// SolarCoin kernel protocol PoST
-// coinstake must meet hash target according to the protocol:
-// kernel (input 0) must meet the formula
-//     hash(nStakeModifier + txPrev.block.nTime + txPrev.offset + txPrev.nTime + txPrev.vout.n + nTime) < bnTarget * nStakeTimeWeight
-// this ensures that the chance of getting a coinstake is proportional to the
-// amount of coin age owned, time factored by the current network strength.
-// The reason this hash is chosen is the following:
-//   nStakeModifier: scrambles computation to make it very difficult to precompute
-//                  future proof-of-stake at the time of the coin's confirmation
-//   txPrev.block.nTime: prevent nodes from guessing a good timestamp to
-//                       generate transaction for future advantage
-//   txPrev.offset: offset of txPrev inside block, to reduce the chance of
-//                  nodes generating coinstake at the same time
-//   txPrev.nTime: reduce the chance of nodes generating coinstake at the same
-//                 time
-//   txPrev.vout.n: output number of txPrev, to reduce the chance of nodes
-//                  generating coinstake at the same time
-//   block/tx hash should not be used here as they can be generated in vast
-//   quantities so as to generate blocks faster, degrading the system back into
-//   a proof-of-work situation.
+
 //
+
+/**
+ * @brief Validates whether a given hashProofOfStake meets the target.
+ * 
+ * Called from CheckProofOfStake.
+ * 
+ * Calculates the targetProofOfStake based on the given stake's stake-time factored weight (via GetStakeTimeFactoredWeight()).
+ * 
+ * Builds the stake's hash, modified by the stake modifier (via GetKernelStakeModifier()), then compares to the target. 
+ * If the stake's hash < target, return true.
+ * 
+ * SolarCoin kernel protocol PoST
+ * coinstake must meet hash target according to the protocol:
+ * kernel (input 0) must meet the formula
+ *     hash(nStakeModifier + txPrev.block.nTime + txPrev.offset + txPrev.nTime + txPrev.vout.n + nTime) < bnTarget * nStakeTimeWeight
+ * this ensures that the chance of getting a coinstake is proportional to the
+ * amount of coin age owned, time factored by the current network strength.
+ * The reason this hash is chosen is the following:
+ *   nStakeModifier: scrambles computation to make it very difficult to precompute
+ *                  future proof-of-stake at the time of the coin's confirmation
+ *   txPrev.block.nTime: prevent nodes from guessing a good timestamp to
+ *                       generate transaction for future advantage
+ *   txPrev.offset: offset of txPrev inside block, to reduce the chance of
+ *                  nodes generating coinstake at the same time
+ *   txPrev.nTime: reduce the chance of nodes generating coinstake at the same
+ *                 time
+ *   txPrev.vout.n: output number of txPrev, to reduce the chance of nodes
+ *                  generating coinstake at the same time
+ *   block/tx hash should not be used here as they can be generated in vast
+ *   quantities so as to generate blocks faster, degrading the system back into
+ *   a proof-of-work situation.
+ * 
+ * @param nBits The new block's nBits
+ * @param blockFrom The block being used to generate the stake hash 
+ * @param nTxOffset The byte-level offset of the transaction inside the block. Seems to depend on the txIndex being built
+ * @param txPrev The transaction used to find the block used to generate the stake hash  
+ * @param prevout The previous output of the first input of the new block's (not the block used to generate the stake hash) first non-coinstake tx (vtx[1])
+ * @param nTimeTx The timestamp of the new block's first non-coinstake tx (vtx[1])
+ * @param[out] hashProofOfStake An address to hold the hashProofOfStake
+ * @param[out] targetProofOfStake An address to hold the targetProofOfStake
+ * @param pindexPrev Pointer to (which block?): chainActive.Tip()->pprev
+ * @param fPrintProofOfStake A flag for additional debug logging, equal to fDebug
+ * @param params Consensus params
+ * @return true 
+ * @return false 
+ */
 bool CheckStakeTimeKernelHash(unsigned int nBits, const CBlock& blockFrom, unsigned int nTxOffset, const CTransaction& txPrev, const COutPoint& prevout, unsigned int nTimeTx, uint256& hashProofOfStake, uint256& targetProofOfStake, CBlockIndex* pindexPrev, bool fPrintProofOfStake, const Consensus::Params& params)
 {
     if (nTimeTx < txPrev.nTime) {  // Transaction timestamp violation
@@ -430,7 +473,24 @@ bool CheckStakeTimeKernelHash(unsigned int nBits, const CBlock& blockFrom, unsig
     return true;
 }
 
-// Check kernel hash target and coinstake signature
+/**
+ * @brief Check kernel hash target and coinstake signature 
+ * 
+ * Called from ProcessNewBlock(). 
+ * 
+ * Uses the transaction stored at the block-to-be-validated's vtx[1]. (the first non-coinstake tx?). 
+ * That transaction's vin[0].prevout.hash (the tx hash of the previous output of the first input of the new block's first non-coinstake tx)
+ * is fetched from the database, along with the hash of its corresponding block. That prior block and tx, along with the tx's offset inside the block,
+ * are used to generate the proof-of-stake for the new block.
+ * 
+ * @param tx Corresponds to the new block's vtx[1].  
+ * @param nBits The nBits of the new block
+ * @param[out] hashProofOfStake address to store the new block's hashProofOfStake
+ * @param[out] targetProofOfStake address to store the new block's targetProofOfStake
+ * @param params Consensus parameters 
+ * @return true 
+ * @return false 
+ */
 bool CheckProofOfStake(const CTransaction& tx, unsigned int nBits, uint256& hashProofOfStake, uint256& targetProofOfStake, const Consensus::Params& params)
 {
     if (!tx.IsCoinStake())
