@@ -110,6 +110,8 @@ int64_t GetStakeModifierSelectionInterval(const Consensus::Params& params)
 }
 
 /**
+  * Called from ComputeNextStakeModifier().
+  *
   * Iterates over the candidate blocks in vSortedByTimestamp, computing the selection hash from the proofhash and previous stake modifier, and selecting
   * the lowest one. Excludes blocks already in vSelectedBlocks, breaks when the timestamp of a block in the sorted vector is greater than the interval stop.
   * @param[out] vSortedByTimestmp a vector of block hashes and timestamps
@@ -171,6 +173,8 @@ static bool SelectBlockFromCandidates(vector<pair<int64_t, arith_uint256> >& vSo
 }
 
 /**
+  * Called from AddToBlockIndex().
+  *
   * Generates a new stake modifier. Retrieves the existing stake modifier for use in the new hash computation, specifies a time interval, 
   * then walks back in the chain to collect the blocks in the time interval into a vector. Over vector.size() rounds, blocks are selected 
   * (reordered?), then the entropy bit of each is written to generate the new stake modifier.
@@ -291,11 +295,10 @@ bool ComputeNextStakeModifier(const CBlockIndex* pindexCurrent, uint64_t& nStake
     return true;
 }
 
-// 
 /**
  * @brief Get the Kernel Stake Modifier object
  * 
- * Called from CheckStakeTimeKernelHash. Fetches the kernel stake modifier for a given block.
+ * Called from CheckStakeTimeKernelHash(). Fetches the kernel stake modifier for a given block.
  * 
  * The stake modifier used to hash for a stake kernel is chosen as the stake
  * modifier about a selection interval later than the coin generating the kernel
@@ -356,13 +359,10 @@ static bool GetKernelStakeModifier(uint256 hashBlockFrom, uint64_t& nStakeModifi
     return true;
 }
 
-
-//
-
 /**
  * @brief Validates whether a given hashProofOfStake meets the target.
  * 
- * Called from CheckProofOfStake.
+ * Called from CheckProofOfStake().
  * 
  * Calculates the targetProofOfStake based on the given stake's stake-time factored weight (via GetStakeTimeFactoredWeight()).
  * 
@@ -533,14 +533,33 @@ bool CheckProofOfStake(const CTransaction& tx, unsigned int nBits, uint256& hash
     return true;
 }
 
-// Check whether the coinstake timestamp meets protocol
+/**
+ * @brief Check whether the coinstake timestamp meets protocol. Does not appear to be currently used.
+ * 
+ * Returns true if nTimeBlock == nTimeTx
+ * 
+ * @param nTimeBlock  
+ * @param nTimeTx 
+ * @return true 
+ * @return false 
+ */
 bool CheckCoinStakeTimestamp(int64_t nTimeBlock, int64_t nTimeTx)
 {
     // v0.3 protocol
     return (nTimeBlock == nTimeTx);
 }
 
-// Get stake modifier checksum
+/**
+ * @brief Build the stake modifier checksum for a block.
+ * 
+ * Called from AddToBlockIndex().
+ * 
+ * Hashes the previous block's stake modifier checksum with the new block's nFlags (?) and hashProofOfStake
+ * 
+ * @param pindex A pointer to the new block index entry
+ * @param params Consensus parameters
+ * @return unsigned int 
+ */
 unsigned int GetStakeModifierChecksum(const CBlockIndex* pindex, const Consensus::Params& params)
 {
     assert (pindex->pprev || pindex->GetBlockHash() == params.hashGenesisBlock);
@@ -554,7 +573,19 @@ unsigned int GetStakeModifierChecksum(const CBlockIndex* pindex, const Consensus
     return hashChecksum.GetUint64(0);
 }
 
-// Check stake modifier hard checkpoints
+/**
+ * @brief Check stake modifier hard checkpoints 
+ * 
+ * Called from AddToBlockIndex() and LoadBlockIndexDB()
+ * 
+ * Checks to see if a given block's height is in the checkpoint map, then if so compares the block's stake modifier checksum with
+ * the checkpoint map's stake modifier checksum
+ * 
+ * @param nHeight A block height
+ * @param nStakeModifierChecksum A stake modifier checksum 
+ * @return true 
+ * @return false 
+ */
 bool CheckStakeModifierCheckpoints(int nHeight, unsigned int nStakeModifierChecksum)
 {
     MapModifierCheckpoints& checkpoints = (fTestNet ? mapStakeModifierCheckpointsTestNet : mapStakeModifierCheckpoints);
@@ -563,7 +594,24 @@ bool CheckStakeModifierCheckpoints(int nHeight, unsigned int nStakeModifierCheck
     return true;
 }
 
-// get stake time factored weight for reward and hash PoST
+/**
+ * @brief Get the Stake Time Factored Weight (consensus power) for both reward and PoST hashing
+ * 
+ * Called from GetStakeTime() and CheckStakeTimeKernelHash()
+ * 
+ * As described in the whitepaper at https://www.vericoin.info/downloads/VeriCoinPoSTWhitePaper10May2015.pdf, the Stake-Time is a modified 
+ * coin-age for a given UTXO. 
+ * 
+ * This fraction is the ratio of the coin-age to the network-wide stake-time weight over the last 60 blocks. It is then further modified, 
+ * reducing the weight of large stakes and evening out consensus, using the formula fraction of consensus power = Cosine(consensus power * pi) ^ 2,
+ * with an upper bound on consensus power to prevent large wallet attacks.
+ * 
+ * @param timeWeight difference in timestamps between the stake tx and the previous tx
+ * @param nCoinDayWeight coin-age of a tx
+ * @param pindexPrev pointer to previous block
+ * @param params consensus params
+ * @return int64_t 
+ */
 int64_t GetStakeTimeFactoredWeight(int64_t timeWeight, int64_t nCoinDayWeight, CBlockIndex* pindexPrev, const Consensus::Params& params)
 {
     int64_t factoredTimeWeight;
@@ -580,7 +628,14 @@ int64_t GetStakeTimeFactoredWeight(int64_t timeWeight, int64_t nCoinDayWeight, C
     return factoredTimeWeight;
 }
 
-// get average stake weight of last 60 blocks PoST
+
+/**
+ * @brief Get the Average Stake Weight of the network over the past 60 blocks for PoST hash and stake calculations
+ * 
+ * @param pindexPrev pointer to the previous block
+ * @param params consensus params
+ * @return double 
+ */
 double GetAverageStakeWeight(CBlockIndex* pindexPrev, const Consensus::Params& params)
 {
     double weightSum = 0.0, weightAve = 0.0;
@@ -610,13 +665,25 @@ double GetAverageStakeWeight(CBlockIndex* pindexPrev, const Consensus::Params& p
     return weightAve;
 }
 
-// ppcoin: total coin age spent in transaction, in the unit of coin-days.
-// Only those coins meeting minimum age requirement counts. As those
-// transactions not in main chain are not currently indexed so we
-// might not find out about their coin age. Older transactions are 
-// guaranteed to be in main chain by sync-checkpoint. This rule is
-// introduced to help nodes establish a consistent view of the coin
-// age (trust score) of competing branches.
+/**
+ * @brief Get the Coin Age of a transaction
+ * 
+ * Never called(?)
+ *
+ * Total coin age spent in transaction, in the unit of coin-days.
+ * Only those coins meeting minimum age requirement counts. As those
+ * transactions not in main chain are not currently indexed so we
+ * might not find out about their coin age. Older transactions are 
+ * guaranteed to be in main chain by sync-checkpoint. This rule is
+ * introduced to help nodes establish a consistent view of the coin
+ * age (trust score) of competing branches.
+ *
+ * @param[out] tx transaction to get the coin-age for 
+ * @param[out] nCoinAge address to store the coinAge in 
+ * @param params consensus params
+ * @return true 
+ * @return false 
+ */
 bool GetCoinAge(const CTransaction& tx, uint64_t& nCoinAge, const Consensus::Params& params)
 {
     arith_uint256 bnCentSecond = 0;  // coin age in the unit of cent-seconds
@@ -668,13 +735,26 @@ bool GetCoinAge(const CTransaction& tx, uint64_t& nCoinAge, const Consensus::Par
     return true;
 }
 
-// SolarCoin: total stake time spent in transaction that is accepted by the network, in the unit of coin-days.
-// Only those coins meeting minimum age requirement counts. As those
-// transactions not in main chain are not currently indexed so we
-// might not find out about their coin age. Older transactions are
-// guaranteed to be in main chain by sync-checkpoint. This rule is
-// introduced to help nodes establish a consistent view of the coin
-// age (trust score) of competing branches. PoST
+/**
+ * @brief Get the Stake Time for a transaction for PoST
+ * 
+ * Called from ConnectBlock()
+ * 
+ * SolarCoin: total stake time spent in transaction that is accepted by the network, in the unit of coin-days.
+ * Only those coins meeting minimum age requirement counts. As those
+ * transactions not in main chain are not currently indexed so we
+ * might not find out about their coin age. Older transactions are
+ * guaranteed to be in main chain by sync-checkpoint. This rule is
+ * introduced to help nodes establish a consistent view of the coin
+ * age (trust score) of competing branches. 
+ * 
+ * @param tx transaction to get the coin-age for 
+ * @param nStakeTime address to store the coinAge in 
+ * @param pindexPrev pointer to previous block
+ * @param params consensus params
+ * @return true 
+ * @return false 
+ */
 bool GetStakeTime(const CTransaction& tx, uint64_t& nStakeTime, CBlockIndex* pindexPrev, const Consensus::Params& params)
 {
     arith_uint256 bnStakeTime = 0;  // coin age in the unit of cent-seconds
@@ -732,6 +812,18 @@ bool GetStakeTime(const CTransaction& tx, uint64_t& nStakeTime, CBlockIndex* pin
     return true;
 }
 
+/**
+ * @brief Get the stake weight for an interval of prior blocks (?)
+ * 
+ * Called from GetAverageStakeWeight()
+ * 
+ * Returns the sum of difficulty of a series of blocks over an interval divided by the 
+ * total time taken between blocks in the interval
+ * 
+ * @param pindexPrev pointer to prior block
+ * @param params 
+ * @return double 
+ */
 double GetPoSKernelPS(CBlockIndex* pindexPrev, const Consensus::Params& params)
 {
     int nPoSInterval = 72;
