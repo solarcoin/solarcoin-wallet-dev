@@ -239,6 +239,17 @@ bool IsFinalTx(const CTransaction &tx, int nBlockHeight, int64_t nBlockTime)
     return true;
 }
 
+/**
+ * @brief Check if transaction will be final in the next block to be created.
+ * 
+ * Calls IsFinalTx against a given transaction with the height of the tip of the 
+ * existing active chain and appropriate block time  
+ * 
+ * @param tx the transaction to check for finality
+ * @param flags flags to modify consensus rules
+ * @return true 
+ * @return false 
+ */
 bool CheckFinalTx(const CTransaction &tx, int flags)
 {
     AssertLockHeld(cs_main);
@@ -272,6 +283,8 @@ bool CheckFinalTx(const CTransaction &tx, int flags)
 }
 
 /**
+ * @brief Calculate when a transaction will be final
+ * 
  * Calculates the block height and previous block's median time past at
  * which the transaction will be considered final in the context of BIP 68.
  * Also removes from the vector of input heights any entries which did not
@@ -339,6 +352,14 @@ static std::pair<int, int64_t> CalculateSequenceLocks(const CTransaction &tx, in
     return std::make_pair(nMinHeight, nMinTime);
 }
 
+/**
+ * @brief See validation.h SequenceLocks
+ * 
+ * @param block 
+ * @param lockPair 
+ * @return true 
+ * @return false 
+ */
 static bool EvaluateSequenceLocks(const CBlockIndex& block, std::pair<int, int64_t> lockPair)
 {
     assert(block.pprev);
@@ -349,11 +370,26 @@ static bool EvaluateSequenceLocks(const CBlockIndex& block, std::pair<int, int64
     return true;
 }
 
+/**
+ * @brief See validation.h SequenceLocks
+ * 
+ * @param block 
+ * @param lockPair 
+ * @return true 
+ * @return false 
+ */
+
 bool SequenceLocks(const CTransaction &tx, int flags, std::vector<int>* prevHeights, const CBlockIndex& block)
 {
     return EvaluateSequenceLocks(block, CalculateSequenceLocks(tx, flags, prevHeights, block));
 }
-
+/**
+ * @brief See validation.h TestLockPointValidity
+ * 
+ * @param lp 
+ * @return true 
+ * @return false 
+ */
 bool TestLockPointValidity(const LockPoints* lp)
 {
     AssertLockHeld(cs_main);
@@ -371,7 +407,16 @@ bool TestLockPointValidity(const LockPoints* lp)
     // LockPoints still valid
     return true;
 }
-
+/**
+ * @brief See validation.h CheckSequenceLocks
+ * 
+ * @param tx 
+ * @param flags 
+ * @param lp 
+ * @param useExistingLockPoints 
+ * @return true 
+ * @return false 
+ */
 bool CheckSequenceLocks(const CTransaction &tx, int flags, LockPoints* lp, bool useExistingLockPoints)
 {
     AssertLockHeld(cs_main);
@@ -442,7 +487,12 @@ bool CheckSequenceLocks(const CTransaction &tx, int flags, LockPoints* lp, bool 
     return EvaluateSequenceLocks(index, lockPair);
 }
 
-
+/**
+ * @brief See validation.h GetLegacySigOpCount
+ * 
+ * @param tx 
+ * @return unsigned int 
+ */
 unsigned int GetLegacySigOpCount(const CTransaction& tx)
 {
     unsigned int nSigOps = 0;
@@ -457,6 +507,13 @@ unsigned int GetLegacySigOpCount(const CTransaction& tx)
     return nSigOps;
 }
 
+/**
+ * @brief See validation.h GetP2SHSigOpCount
+ * 
+ * @param tx 
+ * @param inputs 
+ * @return unsigned int 
+ */
 unsigned int GetP2SHSigOpCount(const CTransaction& tx, const CCoinsViewCache& inputs)
 {
     if (tx.IsCoinBase())
@@ -472,6 +529,14 @@ unsigned int GetP2SHSigOpCount(const CTransaction& tx, const CCoinsViewCache& in
     return nSigOps;
 }
 
+/**
+ * @brief See validation.h GetTransactionSigOpCost
+ * 
+ * @param tx 
+ * @param inputs 
+ * @param flags 
+ * @return int64_t 
+ */
 int64_t GetTransactionSigOpCost(const CTransaction& tx, const CCoinsViewCache& inputs, int flags)
 {
     int64_t nSigOps = GetLegacySigOpCount(tx) * WITNESS_SCALE_FACTOR;
@@ -491,10 +556,15 @@ int64_t GetTransactionSigOpCost(const CTransaction& tx, const CCoinsViewCache& i
     return nSigOps;
 }
 
-
-
-
-
+/**
+ * @brief Context-independent validity checks. See validation.h CheckTransaction
+ * 
+ * @param tx 
+ * @param state 
+ * @param fCheckDuplicateInputs 
+ * @return true 
+ * @return false 
+ */
 bool CheckTransaction(const CTransaction& tx, CValidationState &state, bool fCheckDuplicateInputs)
 {
     // Basic checks that don't depend on any context
@@ -544,6 +614,13 @@ bool CheckTransaction(const CTransaction& tx, CValidationState &state, bool fChe
     return true;
 }
 
+/**
+ * @brief Remove expired transactions and transactions with no spends (?) from the mempool
+ * 
+ * @param pool the mempool
+ * @param limit the size limit
+ * @param age 
+ */
 void LimitMempoolSize(CTxMemPool& pool, size_t limit, unsigned long age) {
     int expired = pool.Expire(GetTime() - age);
     if (expired != 0)
@@ -555,7 +632,9 @@ void LimitMempoolSize(CTxMemPool& pool, size_t limit, unsigned long age) {
         pcoinsTip->Uncache(removed);
 }
 
-/** Convert CValidationState to a human-readable message for logging */
+/** 
+ * @brief Convert CValidationState to a human-readable message for logging 
+ */
 std::string FormatStateMessage(const CValidationState &state)
 {
     return strprintf("%s%s (code %i)",
@@ -564,6 +643,14 @@ std::string FormatStateMessage(const CValidationState &state)
         state.GetRejectCode());
 }
 
+/**
+ * @brief Return true if not initial block download, if the chain tip timestamp is within
+ * the MAX_FEE_ESTIMATION_TIP_AGE, and if the active chain height is within one block of 
+ * the best chain height
+ * 
+ * @return true 
+ * @return false 
+ */
 static bool IsCurrentForFeeEstimation()
 {
     AssertLockHeld(cs_main);
@@ -576,6 +663,24 @@ static bool IsCurrentForFeeEstimation()
     return true;
 }
 
+/**
+ * @brief Worker to attempt to accept tx to mempool. 
+ * 
+ * Called from AcceptToMemoryPoolWithTime(). See validation.h AcceptToMemoryPool*
+ * 
+ * @param pool 
+ * @param state 
+ * @param ptx 
+ * @param fLimitFree 
+ * @param pfMissingInputs 
+ * @param nAcceptTime 
+ * @param plTxnReplaced 
+ * @param fOverrideMempoolLimit 
+ * @param nAbsurdFee 
+ * @param vHashTxnToUncache 
+ * @return true 
+ * @return false 
+ */
 bool AcceptToMemoryPoolWorker(CTxMemPool& pool, CValidationState& state, const CTransactionRef& ptx, bool fLimitFree,
                               bool* pfMissingInputs, int64_t nAcceptTime, std::list<CTransactionRef>* plTxnReplaced,
                               bool fOverrideMempoolLimit, const CAmount& nAbsurdFee, std::vector<uint256>& vHashTxnToUncache)
@@ -1022,6 +1127,23 @@ bool AcceptToMemoryPoolWorker(CTxMemPool& pool, CValidationState& state, const C
     return true;
 }
 
+/**
+ * @brief Attempt to accept tx to mempool with a specified acceptance time. 
+ * 
+ * Called from AcceptToMemoryPool(). See validation.h AcceptToMemoryPool*
+ * 
+ * @param pool 
+ * @param state 
+ * @param tx 
+ * @param fLimitFree 
+ * @param pfMissingInputs 
+ * @param nAcceptTime 
+ * @param plTxnReplaced 
+ * @param fOverrideMempoolLimit 
+ * @param nAbsurdFee 
+ * @return true 
+ * @return false 
+ */
 bool AcceptToMemoryPoolWithTime(CTxMemPool& pool, CValidationState &state, const CTransactionRef &tx, bool fLimitFree,
                         bool* pfMissingInputs, int64_t nAcceptTime, std::list<CTransactionRef>* plTxnReplaced,
                         bool fOverrideMempoolLimit, const CAmount nAbsurdFee)
@@ -1038,6 +1160,23 @@ bool AcceptToMemoryPoolWithTime(CTxMemPool& pool, CValidationState &state, const
     return res;
 }
 
+/**
+ * 
+ * @brief Attempt to accept tx to mempool. 
+ * 
+ * See validation.h AcceptToMemoryPool*
+ * 
+ * @param pool 
+ * @param state 
+ * @param tx 
+ * @param fLimitFree 
+ * @param pfMissingInputs 
+ * @param plTxnReplaced 
+ * @param fOverrideMempoolLimit 
+ * @param nAbsurdFee 
+ * @return true 
+ * @return false 
+ */
 bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransactionRef &tx, bool fLimitFree,
                         bool* pfMissingInputs, std::list<CTransactionRef>* plTxnReplaced,
                         bool fOverrideMempoolLimit, const CAmount nAbsurdFee)
@@ -1045,8 +1184,25 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
     return AcceptToMemoryPoolWithTime(pool, state, tx, fLimitFree, pfMissingInputs, GetTime(), plTxnReplaced, fOverrideMempoolLimit, nAbsurdFee);
 }
 
-/** Return transaction in txOut, and if it was found inside a block, its hash is placed in hashBlock */
-// SolarCoin: Modified to return nTxOffset into block.
+/**
+ * @brief Retrieve a transaction (from memory pool, or from disk, if possible)
+ * 
+ * Return transaction in txOut, and if it was found inside a block, its hash is placed in hashBlock
+ * 
+ * For PoST, modified to return the nTxOffset into the block. Fetches from the tx index, then retrieves the data from the
+ * block file at the tx position (retrieved from index), then checks to see if the hashes match.
+ * 
+ * TODO: If the txIndex is not built, the nTxOffset is not returned and the PoST hashing will fail.
+ * 
+ * @param hash A transaction hash
+ * @param[out] txOut Address to store the transaction
+ * @param[out] nTxOffset Address to store the byte-level offset of the transaction in the block
+ * @param consensusParams consensus parameters 
+ * @param[out] hashBlock Address to store the hash of the block containing the tx
+ * @param fAllowSlow Flag to allow searching the coin database for the block, then scanning it 
+ * @return true 
+ * @return false 
+ */
 bool GetTransaction(const uint256 &hash, CTransactionRef &txOut, unsigned int &nTxOffset, const Consensus::Params& consensusParams, uint256 &hashBlock, bool fAllowSlow)
 {
     CBlockIndex *pindexSlow = NULL;
@@ -1124,6 +1280,15 @@ bool GetTransaction(const uint256 &hash, CTransactionRef &txOut, unsigned int &n
 // CBlock and CBlockIndex
 //
 
+/**
+ * @brief Write a block to the blockfile
+ * 
+ * @param block 
+ * @param pos 
+ * @param messageStart 
+ * @return true 
+ * @return false 
+ */
 bool WriteBlockToDisk(const CBlock& block, CDiskBlockPos& pos, const CMessageHeader::MessageStartChars& messageStart)
 {
     // Open history file to append
@@ -1144,7 +1309,16 @@ bool WriteBlockToDisk(const CBlock& block, CDiskBlockPos& pos, const CMessageHea
 
     return true;
 }
-
+/**
+ * @brief Read a block from disk at a given disk block position
+ * 
+ * @param block 
+ * @param pos 
+ * @param consensusParams 
+ * @param fReadTxns 
+ * @return true 
+ * @return false 
+ */
 bool ReadBlockFromDisk(CBlock& block, const CDiskBlockPos& pos, const Consensus::Params& consensusParams, bool fReadTxns)
 {
     block.SetNull();
@@ -1169,6 +1343,16 @@ bool ReadBlockFromDisk(CBlock& block, const CDiskBlockPos& pos, const Consensus:
     return true;
 }
 
+/**
+ * @brief Read a block from disk based on an in-memory block pointer
+ * 
+ * @param block 
+ * @param pindex 
+ * @param consensusParams 
+ * @param fReadTxns 
+ * @return true 
+ * @return false 
+ */
 bool ReadBlockFromDisk(CBlock& block, const CBlockIndex* pindex, const Consensus::Params& consensusParams, bool fReadTxns)
 {
     if (!ReadBlockFromDisk(block, pindex->GetBlockPos(), consensusParams, fReadTxns))
@@ -1179,6 +1363,17 @@ bool ReadBlockFromDisk(CBlock& block, const CBlockIndex* pindex, const Consensus
     return true;
 }
 
+/**
+ * @brief Get the block subsidy.
+ * 
+ * Called from ConnectBlock() and BlockAssembler::CreateNewBlock()
+ * 
+ * Subsidy is cut in half every 525600 blocks, which will occur approximately every 1 years (525600 blocks for SolarCoin). 
+ * Subsidy starts at 100, ramps down in the first 3100k-357k blocks to 1, then reduced based on years. 
+ * @param nHeight 
+ * @param consensusParams 
+ * @return CAmount 
+ */
 CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
 {
     // Set starting subsidy
@@ -1229,6 +1424,14 @@ CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
     return nSubsidy;
 }
 
+/**
+ * @brief Check for initial block download, either from disk or network.
+ * 
+ * Returns true if fImporting or fReindex flags are set, or if the tip of the active chain is null,
+ * below the consensus params nMinimumChainWork, or older than the current time - nMaxTipAge
+ * @return true 
+ * @return false 
+ */
 bool IsInitialBlockDownload()
 {
     const CChainParams& chainParams = Params();
@@ -1273,6 +1476,10 @@ static void AlertNotify(const std::string& strMessage)
     boost::thread t(runCommand, strCmd); // thread runs free
 }
 
+/**
+ * @brief Check for serious chain problems: forks, invalid chains, best fork deviating from head
+ * 
+ */
 void CheckForkWarningConditions()
 {
     AssertLockHeld(cs_main);
@@ -1313,7 +1520,11 @@ void CheckForkWarningConditions()
         SetfLargeWorkInvalidChainFound(false);
     }
 }
-
+/**
+ * @brief Checks for chain issues on a new fork
+ * 
+ * @param pindexNewForkTip 
+ */
 void CheckForkWarningConditionsOnNewFork(CBlockIndex* pindexNewForkTip)
 {
     AssertLockHeld(cs_main);
@@ -1347,6 +1558,11 @@ void CheckForkWarningConditionsOnNewFork(CBlockIndex* pindexNewForkTip)
     CheckForkWarningConditions();
 }
 
+/**
+ * @brief Set the pindexBestInvalid chain to the parameter pindexNew
+ * 
+ * @param pindexNew 
+ */
 void static InvalidChainFound(CBlockIndex* pindexNew)
 {
     if (!pindexBestInvalid || pindexNew->nChainWork > pindexBestInvalid->nChainWork)
@@ -1364,6 +1580,12 @@ void static InvalidChainFound(CBlockIndex* pindexNew)
     CheckForkWarningConditions();
 }
 
+/**
+ * @brief Handle flagging and cleanup when an invalid block is found
+ * 
+ * @param pindex 
+ * @param state 
+ */
 void static InvalidBlockFound(CBlockIndex *pindex, const CValidationState &state) {
     if (!state.CorruptionPossible()) {
         pindex->nStatus |= BLOCK_FAILED_VALID;
@@ -1373,6 +1595,14 @@ void static InvalidBlockFound(CBlockIndex *pindex, const CValidationState &state
     }
 }
 
+/**
+ * @brief Apply the transaction to the UTXO set
+ * 
+ * @param tx Transaction to apply
+ * @param inputs ?
+ * @param txundo Back out an inadvertently applied tx?
+ * @param nHeight 
+ */
 void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, CTxUndo &txundo, int nHeight)
 {
     // mark inputs spent
@@ -1399,6 +1629,13 @@ void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, CTxUndo &txund
     inputs.ModifyNewCoins(tx.GetHash(), tx.IsCoinBase())->FromTx(tx, nHeight);
 }
 
+/**
+ * @brief Apply the transaction to a UTXO set
+ * 
+ * @param tx 
+ * @param inputs 
+ * @param nHeight 
+ */
 void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, int nHeight)
 {
     CTxUndo txundo;
