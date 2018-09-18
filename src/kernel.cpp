@@ -142,9 +142,15 @@ static bool SelectBlockFromCandidates(vector<pair<int64_t, arith_uint256> >& vSo
         // previous proof-of-stake modifier
         // SolarCoin: CBlockIndex::IsProofOfStake is not valid during header download. Use height instead.
         uint256 hashProof = pindex->nHeight > params.LAST_POW_BLOCK ? pindex->hashProofOfStake : pindex->GetBlockHash();
-        if(pindex->nHeight > params.LAST_POW_BLOCK) {
-            //LogPrintf("%s: Checking candidate block %s\n", __func__, hash.ToString().c_str());
-            //LogPrintf("%s(): candidate hashproof=%s\n", __func__, hashProof.ToString().c_str());
+        static const int LOG_BLOCK = 835320;
+        static const int LOG_END_BLOCK = 835380;
+        
+        if(pindex->nHeight > LOG_BLOCK) {
+          if(pindex->nHeight < LOG_END_BLOCK) {
+
+            LogPrintf("%s: Checking candidate block %s\n", __func__, hash.ToString().c_str());
+            LogPrintf("%s(): candidate hashproof=%s\n", __func__, hashProof.ToString().c_str());
+          }
         }
         CDataStream ss(SER_GETHASH, 0);
         ss << hashProof << nStakeModifierPrev;

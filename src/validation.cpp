@@ -2,6 +2,10 @@
 // Copyright (c) 2009-2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
+/**
+* @file validation.cpp
+* @brief Chain, block, and hash validation
+ */
 
 #include "validation.h"
 #include "kernel.h"
