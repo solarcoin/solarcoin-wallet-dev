@@ -3711,7 +3711,10 @@ bool ProcessNewBlock(const CChainParams& chainparams, const std::shared_ptr<cons
             uint64_t nStakeModifier = 0;
             bool fGeneratedStakeModifier = false;
             CBlockIndex *pindexNew = mapBlockIndex[hash];
-            LogPrintf("*** computing stake modifier from ProcessNewBlock, using hash=%s\n", hash.ToString().c_str());
+            if (pindexNew == nullptr) {
+                LogPrintf("*** ERROR: computing stake modifier, index ptr is null!");
+            }
+            LogPrintf("*** computing stake modifier from ProcessNewBlock, using hash=%s and index ptr=%u, height=%d, nTx=%d \n", hash.ToString().c_str(), pindexNew, pindexNew->nHeight, pindexNew->nTx);
             ComputeStakeModifier(pindexNew, nStakeModifier, fGeneratedStakeModifier, chainparams);
 
 
