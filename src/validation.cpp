@@ -3030,11 +3030,13 @@ CBlockIndex* AddToBlockIndex(const CBlockHeader& block, const CChainParams& chai
     // ppcoin: compute stake modifier
     uint64_t nStakeModifier = 0;
     bool fGeneratedStakeModifier = false;
-    if (!ComputeNextStakeModifier(pindexNew, nStakeModifier, fGeneratedStakeModifier, chainparams.GetConsensus()))
-        LogPrintf("%s: ComputeNextStakeModifier() failed at nHeight=%d\n", __func__, pindexNew->nHeight);
+    ComputeStakeModifier(pindexNew, nStakeModifier, fGeneratedStakeModifier, chainparams);
 
-    pindexNew->SetStakeModifier(nStakeModifier, fGeneratedStakeModifier);
-    pindexNew->nStakeModifierChecksum = GetStakeModifierChecksum(pindexNew, chainparams.GetConsensus());
+//    if (!ComputeNextStakeModifier(pindexNew, nStakeModifier, fGeneratedStakeModifier, chainparams.GetConsensus()))
+//        LogPrintf("%s: ComputeNextStakeModifier() failed at nHeight=%d\n", __func__, pindexNew->nHeight);
+
+//    pindexNew->SetStakeModifier(nStakeModifier, fGeneratedStakeModifier);
+//    pindexNew->nStakeModifierChecksum = GetStakeModifierChecksum(pindexNew, chainparams.GetConsensus());
 
     // ppcoin: record proof-of-stake hash value
     if (pindexNew->nHeight > chainparams.GetConsensus().LAST_POW_BLOCK)
@@ -3061,6 +3063,16 @@ CBlockIndex* AddToBlockIndex(const CBlockHeader& block, const CChainParams& chai
 
     return pindexNew;
 }
+
+void ComputeStakeModifier(CBlockIndex *pindexNew, uint64_t &nStakeModifier, bool& fGeneratedStakeModifier, const CChainParams& chainparams)
+{
+    if (!ComputeNextStakeModifier(pindexNew, nStakeModifier, fGeneratedStakeModifier, chainparams.GetConsensus()))
+        LogPrintf("%s: ComputeNextStakeModifier() failed at nHeight=%d\n", __func__, pindexNew->nHeight);
+
+    pindexNew->SetStakeModifier(nStakeModifier, fGeneratedStakeModifier);
+    pindexNew->nStakeModifierChecksum = GetStakeModifierChecksum(pindexNew, chainparams.GetConsensus());
+}
+
 
 /** Mark a block as having its data received and checked (up to BLOCK_VALID_TRANSACTIONS). */
 bool ReceivedBlockTransactions(const CBlock &block, CValidationState& state, CBlockIndex *pindexNew, const CDiskBlockPos& pos)
