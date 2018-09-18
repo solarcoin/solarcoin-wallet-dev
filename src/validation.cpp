@@ -3064,6 +3064,7 @@ CBlockIndex* AddToBlockIndex(const CBlockHeader& block, const CChainParams& chai
     return pindexNew;
 }
 
+//Solarcoin additing by ging 2018-09-18
 void ComputeStakeModifier(CBlockIndex *pindexNew, uint64_t &nStakeModifier, bool& fGeneratedStakeModifier, const CChainParams& chainparams)
 {
     if (!ComputeNextStakeModifier(pindexNew, nStakeModifier, fGeneratedStakeModifier, chainparams.GetConsensus()))
@@ -3705,6 +3706,15 @@ bool ProcessNewBlock(const CChainParams& chainparams, const std::shared_ptr<cons
 
         if (ret) {
             uint256 hash = pblock->GetHash();
+
+	    // Solarcoin: Proposed fix in 3.1.4 for computing the stake modifier
+            uint64_t nStakeModifier = 0;
+            bool fGeneratedStakeModifier = false;
+            CBlockIndex *pindexNew = mapBlockIndex[hash];
+            LogPrintf("*** computing stake modifier from ProcessNewBlock, using hash=%s\n", hash.ToString().c_str());
+            ComputeStakeModifier(pindexNew, nStakeModifier, fGeneratedStakeModifier, chainparams);
+
+
             LogPrintf("ProcessNewBlock(): %s\n",hash.ToString());
             // ppcoin: check proof-of-stake
             // Limited duplicity on stake: prevents block flood attack
