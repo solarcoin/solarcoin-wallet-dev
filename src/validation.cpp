@@ -3710,11 +3710,17 @@ bool ProcessNewBlock(const CChainParams& chainparams, const std::shared_ptr<cons
 	    // Solarcoin: Proposed fix in 3.1.4 for computing the stake modifier
             uint64_t nStakeModifier = 0;
             bool fGeneratedStakeModifier = false;
-            CBlockIndex *pindexNew = mapBlockIndex[hash];
+//            CBlockIndex *pindexNew = mapBlockIndex[hash];
+            BlockMap::iterator mi = mapBlockIndex.find(hash);
+            if (mi == mapBlockIndex.end()) {
+                LogPrintf("ERROR: Cannot find %s in the blockindex!\n", hash.ToString().c_str());
+                return false;
+            }
+            CBlockIndex *pindexNew = (*mi).second;
             if (pindexNew == nullptr) {
                 LogPrintf("*** ERROR: computing stake modifier, index ptr is null!");
             }
-            LogPrintf("*** computing stake modifier from ProcessNewBlock, using hash=%s and index ptr=%u, height=%d, nTx=%d \n", hash.ToString().c_str(), pindexNew, pindexNew->nHeight, pindexNew->nTx);
+            LogPrintf("*** computing stake modifier from ProcessNewBlock, using hash=%s, height=%d, nTx=%d \n", hash.ToString().c_str(), pindexNew->nHeight, pindexNew->nTx);
             ComputeStakeModifier(pindexNew, nStakeModifier, fGeneratedStakeModifier, chainparams);
 
 
