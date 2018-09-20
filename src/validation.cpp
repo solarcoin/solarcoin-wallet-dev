@@ -3028,6 +3028,8 @@ CBlockIndex* AddToBlockIndex(const CBlockHeader& block, const CChainParams& chai
         LogPrintf("%s: SetStakeEntropyBit() failed at nHeight=%d\n", __func__, pindexNew->nHeight);
 
     // ppcoin: compute stake modifier
+    // Solarcoin: This is also called from ProcessNewBlock
+    // Possibly we can remove it from here???
     uint64_t nStakeModifier = 0;
     bool fGeneratedStakeModifier = false;
     ComputeStakeModifier(pindexNew, nStakeModifier, fGeneratedStakeModifier, chainparams);
@@ -3064,7 +3066,7 @@ CBlockIndex* AddToBlockIndex(const CBlockHeader& block, const CChainParams& chai
     return pindexNew;
 }
 
-//Solarcoin additing by ging 2018-09-18
+//Solarcoin added by ging 2018-09-18
 void ComputeStakeModifier(CBlockIndex *pindexNew, uint64_t &nStakeModifier, bool& fGeneratedStakeModifier, const CChainParams& chainparams)
 {
     if (!ComputeNextStakeModifier(pindexNew, nStakeModifier, fGeneratedStakeModifier, chainparams.GetConsensus()))
@@ -3708,17 +3710,19 @@ bool ProcessNewBlock(const CChainParams& chainparams, const std::shared_ptr<cons
             uint256 hash = pblock->GetHash();
 
 	    // Solarcoin: Proposed fix in 3.1.4 for computing the stake modifier
+	    // This was previously valled during getheaders process 
+
             uint64_t nStakeModifier = 0;
             bool fGeneratedStakeModifier = false;
-//            CBlockIndex *pindexNew = mapBlockIndex[hash];
             BlockMap::iterator mi = mapBlockIndex.find(hash);
             if (mi == mapBlockIndex.end()) {
-                LogPrintf("ERROR: Cannot find %s in the blockindex!\n", hash.ToString().c_str());
+                LogPrintf("ERROR: ProcessNewBlock: Cannot find %s in the blockindex!\n", hash.ToString().c_str());
                 return false;
             }
             CBlockIndex *pindexNew = (*mi).second;
             if (pindexNew == nullptr) {
-                LogPrintf("*** ERROR: computing stake modifier, index ptr is null!");
+                LogPrintf("*** ERROR: ProcessNewBlock: computing stake modifier, index ptr is null!");
+		return false;
             }
             LogPrintf("*** computing stake modifier from ProcessNewBlock, using hash=%s, height=%d, nTx=%d \n", hash.ToString().c_str(), pindexNew->nHeight, pindexNew->nTx);
             ComputeStakeModifier(pindexNew, nStakeModifier, fGeneratedStakeModifier, chainparams);
